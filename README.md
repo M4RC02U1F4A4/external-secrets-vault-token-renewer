@@ -2,9 +2,14 @@
 
 Kube CronJob to renew tokens used by external-secrets
 
-The CronJob needs a token that allows the renew via accessor passed via secret (can obviously be created using external-secrets)
+###### This cron use healthchecks.io to monitor the cron status
+
+The CronJob needs a token that allows the renew via accessor passed via secret
 
 ```
+path "auth/token/lookup-accessor" {
+  capabilities = ["update"]
+}
 path 'auth/token/renew-accessor' {
   capabilities = ["update"]
 }
@@ -21,8 +26,6 @@ stringData:
 ```
 
 It then needs two config maps, the first containing the list of accessors to be renewed and the second with the settings for making the requests
-
-###### This cron use healthchecks.io to monitor the cron status
 
 ```yaml
 apiVersion: v1

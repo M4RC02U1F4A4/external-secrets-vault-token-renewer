@@ -1,0 +1,44 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: esvtr-script
+  namespace: external-secrets
+data:
+  script.sh: |
+    #!/bin/sh
+    echo "Installing jq..."
+    apk add --no-cache jq
+
+    echo "Starting ping process..."
+    curl -s -X GET "$HC_URL/ping/$HC_UUID/start"
+
+    renew_outputs=""
+
+    echo "Reading /tmp/accessor.lst..."
+    while IFS= read -r line || [ -n "$line" ]; do 
+        echo "Renewing token for accessor: $line"
+        renew_output=$(curl -s -X POST \
+            --header "X-Vault-Token: $TOKEN" \
+            "$VAULT_URL/v1/auth/token/renew-accessor" \
+            -d "{\"accessor\": \"$line\"}")
+
+        renew_outputs="$renew_outputs$renew_output\n"
+
+        echo "Looking up token for accessor: $line"
+        lookup_output=$(curl -s -X POST \
+            --header "X-Vault-Token: $TOKEN" \
+            "$VAULT_URL/v1/auth/token/lookup-accessor" \
+            -d "{\"accessor\": \"$line\"}")
+
+        echo "Logging lookup output..."
+        curl -s -X POST --data "$lookup_output" "$HC_URL/ping/$HC_UUID/log"
+        
+    done < /tmp/accessor.lst
+
+    if echo "$renew_outputs" | grep -q '"errors"'; then
+        echo "Errors found in renewal outputs. Failing..."
+        curl -s -X POST --data "$renew_outputs" "$HC_URL/ping/$HC_UUID/fail"
+    else
+        echo "No errors found. Sending success notification..."
+        curl -s -X POST --data "$renew_outputs" "$HC_URL/ping/$HC_UUID"
+    fi

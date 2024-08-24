@@ -14,37 +14,30 @@ spec:
           containers:
           - name: esvtr-renew-tokens-container
             image: curlimages/curl 
-            command:
-            - /bin/sh
-            - -c
-            - 'curl -s -X GET "$HC_URL/ping/$HC_UUID/start"; output=$(while IFS= read -r line || [ -n "$line" ]; do curl -s -X POST --header "X-Vault-Token: $TOKEN" $VAULT_URL/v1/auth/token/renew-accessor -d "{\"accessor\": \"$line\"}"; done < /tmp/accessor.lst); curl -s -X POST --data "$output" "$HC_URL/ping/$HC_UUID"'
+            command: ["/bin/sh", "/scripts/script.sh"]
+            securityContext:
+              runAsUser: 0
             env:
             - name: TOKEN
               valueFrom:
                 secretKeyRef:
                   name: esvtr-master-token
                   key: token
-            - name: VAULT_URL
-              valueFrom:
-                configMapKeyRef:
-                  name: esvtr-config
-                  key: VAULT_URL
-            - name: HC_UUID
-              valueFrom:
-                configMapKeyRef:
-                  name: esvtr-config
-                  key: HC_UUID
-            - name: HC_URL
-              valueFrom:
-                configMapKeyRef:
-                  name: esvtr-config
-                  key: HC_URL
+            envFrom:
+            - configMapRef:
+                name: esvtr-config
             volumeMounts:
             - name: esvtr-accessor-list
               mountPath: /tmp/accessor.lst
               subPath: accessor.lst
+            - name: script-volume
+              mountPath: /scripts/script.sh
+              subPath: script.sh
           restartPolicy: Never
           volumes:
           - name: esvtr-accessor-list
             configMap:
               name: esvtr-accessor-list
+          - name: script-volume
+            configMap:
+              name: esvtr-script
